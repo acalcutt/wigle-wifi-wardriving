@@ -46,13 +46,13 @@ jobs:
           ./gradlew clean assembleRelease -x lint
 
       - name: Collect APKs
-        run: ls -R app/build/outputs || true
+        run: ls -R **/build/outputs || true
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: wigle-apk
-          path: '**/app/build/outputs/**/*.apk'
+          path: '**/build/outputs/**/*.apk'
 
   create_release:
     name: Create Release (on tag)
