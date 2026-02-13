@@ -221,10 +221,12 @@ public class ActivateActivity extends AppCompatActivity {
                                                     runOnUiThread(() -> {
                                                         final SharedPreferences prefs = MainActivity.getMainActivity().getSharedPreferences(PreferenceKeys.SHARED_PREFS, 0);
                                                         final SharedPreferences.Editor editor = prefs.edit();
-                                                        if (username != null) editor.putString(PreferenceKeys.PREF_USERNAME, username);
+                                                        // Store WifiDB credentials in their own prefs so we don't overwrite WiGLE account
+                                                        if (username != null) editor.putString(PreferenceKeys.PREF_WIFIDB_USERNAME, username);
+                                                        editor.putString(PreferenceKeys.PREF_WIFIDB_APIKEY, apikey);
                                                         editor.putBoolean(PreferenceKeys.PREF_BE_ANONYMOUS, false);
                                                         editor.apply();
-                                                        TokenAccess.setApiToken(prefs, apikey);
+                                                        // notify API manager that prefs changed
                                                         MainActivity.refreshApiManager();
                                                         Toast.makeText(getApplicationContext(), "Activation successful!", Toast.LENGTH_SHORT).show();
                                                         try { image.close(); } catch (Exception ignored) {}
