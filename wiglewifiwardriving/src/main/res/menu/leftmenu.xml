@@ -79,6 +79,12 @@
             android:contentDescription="@string/tab_uploads"
             />
         <item
+            android:id="@+id/nav_wifidb_uploads"
+            android:icon="@android:drawable/ic_menu_upload"
+            android:title="@string/wifidb_uploads"
+            android:contentDescription="@string/wifidb_uploads"
+            />
+        <item
             android:id="@+id/nav_settings"
             android:icon="@drawable/wrench"
             android:title="@string/menu_settings"

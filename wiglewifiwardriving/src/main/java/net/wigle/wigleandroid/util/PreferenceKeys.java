@@ -53,7 +53,10 @@ public class PreferenceKeys {
     public static final String PREF_WIFIDB_APIKEY = "wifidb_apikey";
     public static final String PREF_WIFIDB_URL = "wifidb_url";
     public static final String PREF_WIFIDB_AUTO_UPLOAD = "wifidb_auto_upload";
-    public static final String PREF_WIFIDB_AUTO_INTERVAL = "wifidb_auto_interval";
+    public static final String PREF_WIFIDB_AUTO_UPLOAD_BY_TIME = "wifidb_auto_upload_by_time";
+    public static final String PREF_WIFIDB_AUTO_UPLOAD_VALUE = "wifidb_auto_upload_value";
+    public static final String PREF_WIFIDB_UPLOAD_FOLDER = "wifidb_upload_folder";
+    public static final String PREF_WIFIDB_CLEAR_AFTER_UPLOAD = "wifidb_clear_after_upload";
     public static final String PREF_EXCLUDE_DISPLAY_ADDRS = "displayExcludeAddresses";
     public static final String PREF_EXCLUDE_LOG_ADDRS = "logExcludeAddresses";
     public static final String PREF_GPS_TIMEOUT = "gpsTimeout";

@@ -220,6 +220,17 @@
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value=".MainActivity" />
         </activity>
+        <activity
+            android:name=".UploadsActivity"
+            android:configChanges="keyboard|keyboardHidden|orientation|locale|screenSize"
+            android:exported="false"
+            android:label="@string/uploads_screen_title"
+            android:launchMode="singleTop"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value="net.wigle.wigleandroid.MainActivity" />
+        </activity>
         <receiver android:name=".listener.TerminationReceiver"
             android:exported="true"
             tools:ignore="ExportedReceiver">

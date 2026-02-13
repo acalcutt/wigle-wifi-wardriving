@@ -39,6 +39,7 @@ import org.json.JSONObject;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.ConnectException;
@@ -81,6 +82,8 @@ public class ObservationUploader extends AbstractProgressApiRequest {
     private final boolean justWriteFile;
     private final boolean writeEntireDb;
     private final boolean writeRun;
+    private final String filePath;
+    private final String fileName;
 
     Status status;
 
@@ -105,6 +108,13 @@ public class ObservationUploader extends AbstractProgressApiRequest {
     public ObservationUploader(final FragmentActivity context,
                                final DatabaseHelper dbHelper, final ApiListener listener,
                                boolean justWriteFile, boolean writeEntireDb, boolean writeRun) {
+        this(context, dbHelper, listener, justWriteFile, writeEntireDb, writeRun, null, null);
+    }
+
+    public ObservationUploader(final FragmentActivity context,
+                               final DatabaseHelper dbHelper, final ApiListener listener,
+                               boolean justWriteFile, boolean writeEntireDb, boolean writeRun,
+                               final String filePath, final String fileName) {
         super(context, dbHelper, "ApiUL", null, UrlConfig.FILE_POST_URL, false,
                 true, false, false,
                 AbstractApiRequest.REQUEST_POST, listener, true);
@@ -114,6 +124,8 @@ public class ObservationUploader extends AbstractProgressApiRequest {
         }
         this.writeEntireDb = writeEntireDb;
         this.writeRun = writeRun;
+        this.filePath = filePath;
+        this.fileName = fileName;
     }
 
     @Override
@@ -354,11 +366,35 @@ public class ObservationUploader extends AbstractProgressApiRequest {
         final Bundle bundle = new Bundle();
 
         try {
-            try (OutputStream fos = FileAccess.getOutputStream(context, bundle, new Object[2])) {
-                writeFile(fos, bundle, countStats);
-                // show on the UI
-                status = Status.WRITE_SUCCESS;
-                sendBundledMessage(status.ordinal(), bundle);
+            if (filePath != null && fileName != null) {
+                final File file = new File(filePath, fileName);
+                try (OutputStream fos = new FileOutputStream(file)) {
+                    writeFile(fos, bundle, countStats);
+                    status = Status.WRITE_SUCCESS;
+                    sendBundledMessage(status.ordinal(), bundle);
+                    Intent i = new Intent("net.wigle.wigleandroid.FILE_READY");
+                    i.putExtra(BackgroundGuiHandler.FILENAME, fileName);
+                    i.putExtra(BackgroundGuiHandler.FILEPATH, filePath);
+                    if (context != null) context.sendBroadcast(i);
+                }
+            } else {
+                try (OutputStream fos = FileAccess.getOutputStream(context, bundle, new Object[2])) {
+                    writeFile(fos, bundle, countStats);
+                    // show on the UI
+                    status = Status.WRITE_SUCCESS;
+                    sendBundledMessage(status.ordinal(), bundle);
+                    // Broadcast that a file has been written so other components (UploadsActivity) can pick it up
+                    try {
+                        final String fileName = bundle.getString(BackgroundGuiHandler.FILENAME);
+                        final String filePath = bundle.getString(BackgroundGuiHandler.FILEPATH);
+                        Intent i = new Intent("net.wigle.wigleandroid.FILE_READY");
+                        if (fileName != null) i.putExtra(BackgroundGuiHandler.FILENAME, fileName);
+                        if (filePath != null) i.putExtra(BackgroundGuiHandler.FILEPATH, filePath);
+                        if (context != null) context.sendBroadcast(i);
+                    } catch (final Exception ex) {
+                        Logging.error("Failed to broadcast file ready: ", ex);
+                    }
+                }
             }
         }
         catch ( InterruptedException ex ) {

@@ -44,6 +44,8 @@ import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
+import android.widget.RadioButton;
+import android.widget.RadioGroup;
 import android.widget.TextView;
 
 import net.wigle.wigleandroid.listener.GNSSListener;
@@ -441,6 +443,8 @@ public final class SettingsFragment extends Fragment implements DialogListener {
         activate.setOnClickListener(v -> {
             final Intent intent = new Intent(getContext(), ActivateActivity.class);
             intent.setData(Uri.parse(ActivateActivity.BARCODE_INTENT_SCHEME+"://"+ActivateActivity.BARCODE_INTENT_HOST));
+            // limit scanner to WiGLE activation format only
+            intent.putExtra("scan_mode", "wigle");
             startActivity(intent);
         });
         updateRegister(view);
@@ -593,15 +597,27 @@ public final class SettingsFragment extends Fragment implements DialogListener {
         final EditText wdbUser = view.findViewById(R.id.edit_wifidb_username);
         final EditText wdbApi = view.findViewById(R.id.edit_wifidb_apikey);
         final EditText wdbUrl = view.findViewById(R.id.edit_wifidb_url);
+        final EditText wdbFolder = view.findViewById(R.id.edit_wifidb_upload_folder);
         final CheckBox wdbAuto = view.findViewById(R.id.checkbox_wifidb_autoupload);
-        final EditText wdbInterval = view.findViewById(R.id.edit_wifidb_auto_interval);
+        final RadioGroup wdbAutoGroup = view.findViewById(R.id.radiogroup_wifidb_autoupload);
+        final RadioButton wdbAutoTime = view.findViewById(R.id.radio_wifidb_autoupload_time);
+        final RadioButton wdbAutoCount = view.findViewById(R.id.radio_wifidb_autoupload_count);
+        final EditText wdbAutoValue = view.findViewById(R.id.edit_wifidb_auto_upload_value);
+        final CheckBox wdbClearAfter = view.findViewById(R.id.checkbox_wifidb_clear_after_upload);
 
         // init values
         wdbUser.setText(prefs.getString(PreferenceKeys.PREF_WIFIDB_USERNAME, ""));
         wdbApi.setText(prefs.getString(PreferenceKeys.PREF_WIFIDB_APIKEY, ""));
         wdbUrl.setText(prefs.getString(PreferenceKeys.PREF_WIFIDB_URL, ""));
+        wdbFolder.setText(prefs.getString(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER, "wifidb"));
         wdbAuto.setChecked(prefs.getBoolean(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD, false));
-        wdbInterval.setText(Integer.toString(prefs.getInt(PreferenceKeys.PREF_WIFIDB_AUTO_INTERVAL, 60)));
+        wdbAutoValue.setText(Integer.toString(prefs.getInt(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD_VALUE, 60)));
+        if (prefs.getBoolean(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD_BY_TIME, true)) {
+            wdbAutoTime.setChecked(true);
+        } else {
+            wdbAutoCount.setChecked(true);
+        }
+
 
         wdbUser.addTextChangedListener(new SetWatcher() {
             @Override public void onTextChanged(String s) { credentialsUpdate(PreferenceKeys.PREF_WIFIDB_USERNAME, editor, prefs, s); }
@@ -612,23 +628,54 @@ public final class SettingsFragment extends Fragment implements DialogListener {
         wdbUrl.addTextChangedListener(new SetWatcher() {
             @Override public void onTextChanged(String s) { credentialsUpdate(PreferenceKeys.PREF_WIFIDB_URL, editor, prefs, s); }
         });
+        wdbFolder.addTextChangedListener(new SetWatcher() {
+            @Override public void onTextChanged(String s) { credentialsUpdate(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER, editor, prefs, s); }
+        });
 
         wdbAuto.setOnCheckedChangeListener((buttonView, isChecked) -> {
             editor.putBoolean(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD, isChecked);
             editor.apply();
         });
 
-        wdbInterval.addTextChangedListener(new SetWatcher() {
+        wdbAutoGroup.setOnCheckedChangeListener((group, checkedId) -> {
+            if (checkedId == R.id.radio_wifidb_autoupload_time) {
+                editor.putBoolean(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD_BY_TIME, true);
+            } else {
+                editor.putBoolean(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD_BY_TIME, false);
+            }
+            editor.apply();
+        });
+
+        wdbAutoValue.addTextChangedListener(new SetWatcher() {
             @Override public void onTextChanged(String s) {
                 try {
                     int v = Integer.parseInt(s.trim());
-                    editor.putInt(PreferenceKeys.PREF_WIFIDB_AUTO_INTERVAL, v);
+                    editor.putInt(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD_VALUE, v);
                 } catch (Exception ex) {
-                    editor.remove(PreferenceKeys.PREF_WIFIDB_AUTO_INTERVAL);
+                    editor.remove(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD_VALUE);
                 }
                 editor.apply();
             }
         });
+
+        if (wdbClearAfter != null) {
+            wdbClearAfter.setChecked(prefs.getBoolean(PreferenceKeys.PREF_WIFIDB_CLEAR_AFTER_UPLOAD, false));
+            wdbClearAfter.setOnCheckedChangeListener((buttonView, isChecked) -> {
+                editor.putBoolean(PreferenceKeys.PREF_WIFIDB_CLEAR_AFTER_UPLOAD, isChecked);
+                editor.apply();
+            });
+        }
+
+        // WiFiDB-specific scan button: launch scanner restricted to WifiDB redeem URLs
+        final Button wdbScan = view.findViewById(R.id.wifidb_scan_button);
+        if (wdbScan != null) {
+            wdbScan.setOnClickListener(v -> {
+                final Intent intent = new Intent(getContext(), ActivateActivity.class);
+                intent.setData(Uri.parse(ActivateActivity.BARCODE_INTENT_SCHEME+"://"+ActivateActivity.BARCODE_INTENT_HOST));
+                intent.putExtra("scan_mode", "wifidb");
+                startActivity(intent);
+            });
+        }
         if (Build.VERSION.SDK_INT > 28) {
             View theme = view.findViewById(R.id.theme_section);
             theme.setVisibility(View.VISIBLE);

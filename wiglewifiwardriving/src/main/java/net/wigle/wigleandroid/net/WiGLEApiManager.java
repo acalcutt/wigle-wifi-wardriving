@@ -21,6 +21,7 @@ import com.appmattus.certificatetransparency.VerificationResult;
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
 
+import net.wigle.wigleandroid.ListFragment;
 import net.wigle.wigleandroid.TokenAccess;
 import net.wigle.wigleandroid.background.BackgroundGuiHandler;
 import net.wigle.wigleandroid.background.CountingRequestBody;
@@ -673,7 +674,29 @@ public class WiGLEApiManager {
                                 final String responseBodyString = responseBody.string();
                                 UploadReseponse r =  new Gson().fromJson(responseBodyString,
                                         UploadReseponse.class);
-                                completedListener.onTaskSucceeded(r);
+                            completedListener.onTaskSucceeded(r);
+                            // if configured, clear local DB after successful WifiDB upload
+                            try {
+                                final SharedPreferences prefs = context.getSharedPreferences(net.wigle.wigleandroid.util.PreferenceKeys.SHARED_PREFS, 0);
+                                boolean clearAfter = prefs.getBoolean(net.wigle.wigleandroid.util.PreferenceKeys.PREF_WIFIDB_CLEAR_AFTER_UPLOAD, false);
+                                if (clearAfter) {
+                                    if (ListFragment.lameStatic != null && ListFragment.lameStatic.dbHelper != null) {
+                                        ListFragment.lameStatic.dbHelper.clearDatabase();
+                                        SharedPreferences.Editor editor = prefs.edit();
+                                        editor.putLong(net.wigle.wigleandroid.util.PreferenceKeys.PREF_DB_MARKER, 0L);
+                                        editor.apply();
+                                        try {
+                                            ListFragment.lameStatic.dbHelper.getNetworkCountFromDB();
+                                        } catch (Exception dbe) {
+                                            Logging.warn("Failed to update network count on DB clear: ", dbe);
+                                        }
+                                    } else {
+                                        Logging.warn("Unable to clear DB after upload: ListFragment.lameStatic or dbHelper null");
+                                    }
+                                }
+                            } catch (Exception ex) {
+                                Logging.error("Error while clearing DB after upload: ", ex);
+                            }
                             } catch (JsonSyntaxException e) {
                                 //ALIBI: sometimes java.net.SocketTimeoutException manifests as a JSE here?
                                 //TODO: deserialize failed response to get error and send to onTaskFailed?
@@ -696,93 +719,6 @@ public class WiGLEApiManager {
                 }
             }
         );
-    }
-
-    /**
-     * Upload a file to a configured WifiDB instance (separate provider).
-     * Reads `wifidb_url`, `wifidb_username`, `wifidb_apikey` from preferences.
-     */
-    public void uploadToWifiDB(@NotNull final String filename,
-                               @NotNull final Map<String, String> params,
-                               final Handler handler,
-                               @NotNull final RequestCompletedListener<UploadReseponse,
-            JSONObject> completedListener) {
-        final SharedPreferences prefs = context.getSharedPreferences(net.wigle.wigleandroid.util.PreferenceKeys.SHARED_PREFS, 0);
-        final String url = prefs.getString(net.wigle.wigleandroid.util.PreferenceKeys.PREF_WIFIDB_URL, "");
-        if (url == null || url.isEmpty()) {
-            completedListener.onTaskFailed(LOCAL_FAILURE_CODE, null);
-            return;
-        }
-
-        MultipartBody.Builder builder = new MultipartBody.Builder()
-                .setType(MultipartBody.FORM)
-                .addFormDataPart("file", new File(filename).getName(),
-                        RequestBody.create(new File(filename), MediaType.parse("text/csv")));
-
-        // add configured username/apikey if present
-        final String wuser = prefs.getString(net.wigle.wigleandroid.util.PreferenceKeys.PREF_WIFIDB_USERNAME, "");
-        final String wapikey = prefs.getString(net.wigle.wigleandroid.util.PreferenceKeys.PREF_WIFIDB_APIKEY, "");
-        if (wuser != null && !wuser.isEmpty()) builder.addFormDataPart("username", wuser);
-        if (wapikey != null && !wapikey.isEmpty()) builder.addFormDataPart("apikey", wapikey);
-
-        // add user-supplied params
-        if (!params.isEmpty()) {
-            for ( Map.Entry<String, String> entry : params.entrySet() ) {
-                builder.addFormDataPart(entry.getKey(), entry.getValue());
-            }
-        }
-
-        MultipartBody requestBody = builder.build();
-        CountingRequestBody countingBody
-                = new CountingRequestBody(requestBody, (bytesWritten, contentLength) -> {
-            int progress = (int)((bytesWritten*1000) / contentLength );
-            Logging.info("progress: "+ progress + "("+bytesWritten +" /"+contentLength+")");
-            if ( handler != null && progress >= 0 ) {
-                handler.sendEmptyMessage( BackgroundGuiHandler.WRITING_PERCENT_START + progress );
-            }
-        });
-
-        OkHttpClient client = unauthedClient;
-        if (authedClient != null) {
-            client = authedClient;
-        }
-        Request request = new Request.Builder()
-                .url(url)
-                .post(countingBody)
-                .build();
-
-        client.newCall(request).enqueue(new Callback() {
-            @Override
-            public void onResponse(@NonNull Call call, @NonNull Response response) throws IOException {
-                if (!response.isSuccessful()) {
-                    Logging.error("Failed to upload file to WifiDB: " + response.code() + " " + response.message());
-                    completedListener.onTaskFailed(response.code(), null);
-                } else {
-                    if (null != response.body()) {
-                        try (ResponseBody responseBody = response.body()) {
-                            final String responseBodyString = responseBody.string();
-                            UploadReseponse r =  new Gson().fromJson(responseBodyString,
-                                    UploadReseponse.class);
-                            completedListener.onTaskSucceeded(r);
-                        } catch (JsonSyntaxException e) {
-                            completedListener.onTaskFailed(LOCAL_FAILURE_CODE, null);
-                        }
-                    } else {
-                        completedListener.onTaskFailed(LOCAL_FAILURE_CODE, null);
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(@NonNull Call call, @NonNull IOException e) {
-                if (null != e) {
-                    Logging.error("Failed to upload to WifiDB - client exception: "+ e.getClass() + " - " + e.getMessage());
-                } else {
-                    Logging.error("Failed to upload to WifiDB - client call failed. (data: "+hasDataConnection(context.getApplicationContext())+")");
-                }
-                completedListener.onTaskFailed(LOCAL_FAILURE_CODE, null);
-            }
-        });
     }
 
     /**

@@ -75,12 +75,19 @@ public class ActivateActivity extends AppCompatActivity {
 
     private PreviewView cameraView;
 
+    private String scanMode = null;
+
     private static final int REQUEST_CAMERA = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_activate);
+
+        // optional intent extra to restrict scanner behavior: "wigle", "wifidb", or null/both
+        try {
+            scanMode = getIntent() != null ? getIntent().getStringExtra("scan_mode") : null;
+        } catch (Exception ignore) { scanMode = null; }
 
         EdgeToEdge.enable(this);
         View backButtonWrapper = findViewById(R.id.activate_back_layout);
@@ -175,8 +182,9 @@ public class ActivateActivity extends AppCompatActivity {
                             final String dv = qr.getDisplayValue();
                             if (dv == null) continue;
 
-                            // existing WiGLE activation format: username:authname:token
-                            if (dv.matches("^.*:[a-zA-Z0-9]*:[a-zA-Z0-9]*$")) {
+                                // existing WiGLE activation format: username:authname:token
+                                if ((scanMode == null || "both".equals(scanMode) || "wigle".equals(scanMode))
+                                    && dv.matches("^.*:[a-zA-Z0-9]*:[a-zA-Z0-9]*$")) {
                                 String[] tokens = dv.split(":");
                                 final SharedPreferences prefs = MainActivity.getMainActivity().getSharedPreferences(PreferenceKeys.SHARED_PREFS, 0);
                                 final SharedPreferences.Editor editor = prefs.edit();
@@ -191,8 +199,9 @@ public class ActivateActivity extends AppCompatActivity {
                                 return;
                             }
 
-                            // WifiDB one-time redeem URL, e.g. https://<host>/wifidb/cp/redeem_link.php?token=...
-                            if (dv.contains("redeem_link.php?token=")) {
+                                // WifiDB one-time redeem URL, e.g. https://<host>/wifidb/cp/redeem_link.php?token=...
+                                if ((scanMode == null || "both".equals(scanMode) || "wifidb".equals(scanMode))
+                                    && dv.contains("redeem_link.php?token=")) {
                                 final String redeemUrl = dv.trim();
                                 Logging.info("Attempting to redeem WifiDB URL: " + redeemUrl);
                                 new Thread(() -> {
@@ -213,17 +222,29 @@ public class ActivateActivity extends AppCompatActivity {
                                             rd.close();
                                             String resp = sb.toString();
                                             Logging.info("WifiDB redeem response body: " + resp);
+                                                // derive base WifiDB URL from redeem URL
+                                                String baseWdbUrl = "";
+                                                try {
+                                                    URL parsed = new URL(redeemUrl);
+                                                    baseWdbUrl = parsed.getProtocol() + "://" + parsed.getHost();
+                                                    if (parsed.getPort() != -1) baseWdbUrl += ":" + parsed.getPort();
+                                                    if (!baseWdbUrl.endsWith("/")) baseWdbUrl += "/";
+                                                    // API endpoint default
+                                                    baseWdbUrl = baseWdbUrl + "api/";
+                                                } catch (Exception ignore) { }
                                             try {
                                                 JSONObject obj = new JSONObject(resp);
                                                 final String apikey = obj.optString("apikey", null);
                                                 final String username = obj.optString("username", null);
                                                 if (apikey != null && !apikey.isEmpty()) {
-                                                    runOnUiThread(() -> {
+                                                        final String finalBaseWdbUrl = baseWdbUrl;
+                                                        runOnUiThread(() -> {
                                                         final SharedPreferences prefs = MainActivity.getMainActivity().getSharedPreferences(PreferenceKeys.SHARED_PREFS, 0);
                                                         final SharedPreferences.Editor editor = prefs.edit();
-                                                        // Store WifiDB credentials in their own prefs so we don't overwrite WiGLE account
-                                                        if (username != null) editor.putString(PreferenceKeys.PREF_WIFIDB_USERNAME, username);
-                                                        editor.putString(PreferenceKeys.PREF_WIFIDB_APIKEY, apikey);
+                                                            // Store WifiDB credentials in their own prefs so we don't overwrite WiGLE account
+                                                            if (username != null) editor.putString(PreferenceKeys.PREF_WIFIDB_USERNAME, username);
+                                                            editor.putString(PreferenceKeys.PREF_WIFIDB_APIKEY, apikey);
+                                                            if (finalBaseWdbUrl != null && !finalBaseWdbUrl.isEmpty()) editor.putString(PreferenceKeys.PREF_WIFIDB_URL, finalBaseWdbUrl);
                                                         editor.putBoolean(PreferenceKeys.PREF_BE_ANONYMOUS, false);
                                                         editor.apply();
                                                         // notify API manager that prefs changed

@@ -809,6 +809,7 @@ public final class MainActivity extends AppCompatActivity implements TextToSpeec
         fragmentTitles.put(R.id.nav_rank, getString(R.string.rank_stats_app_name));
         fragmentTitles.put(R.id.nav_stats, getString(R.string.tab_stats));
         fragmentTitles.put(R.id.nav_uploads, getString(R.string.uploads_app_name));
+        fragmentTitles.put(R.id.nav_wifidb_uploads, getString(R.string.wifidb_uploads));
         fragmentTitles.put(R.id.nav_settings, getString(R.string.settings_app_name));
         fragmentTitles.put(R.id.nav_exit, getString(R.string.menu_exit));
         //fragmentTitles.put(R.id.nav_, getString(R.string.site_stats_app_name));
@@ -888,6 +889,8 @@ public final class MainActivity extends AppCompatActivity implements TextToSpeec
             return NewsFragment.class;
         } else if (navId == R.id.nav_uploads) {
             return UploadsFragment.class;
+        } else if (navId == R.id.nav_wifidb_uploads) {
+            return WifiDBUploadsFragment.class;
         } else if (navId == R.id.nav_settings) {
             return SettingsFragment.class;
         } else {

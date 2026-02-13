@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:id="@+id/uploads_status_label"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Uploads status"
+        android:textStyle="bold"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/uploads_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="(no data)"
+        android:paddingBottom="16dp" />
+
+    <Button
+        android:id="@+id/button_upload"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Upload Current Run" />
+
+    <Button
+        android:id="@+id/button_upload_and_clear"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Upload and Clear" 
+        android:layout_marginTop="8dp"/>
+
+    <Button
+        android:id="@+id/button_refresh_status"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Refresh Status"
+        android:layout_marginTop="16dp"/>
+
+</LinearLayout>

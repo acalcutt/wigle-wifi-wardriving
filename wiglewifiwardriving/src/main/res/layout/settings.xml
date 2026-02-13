@@ -271,13 +271,6 @@
         android:layout_height="wrap_content"
         android:text="@string/enable_map_bearing" />
 
-    <TextView
-        android:layout_width="fill_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/settings_scan_head"
-        style="?android:attr/listSeparatorTextViewStyle"
-        />
-
     <!-- WiFiDB settings -->
     <TextView
         android:layout_width="fill_parent"
@@ -285,6 +278,12 @@
         android:text="@string/wifidb_settings_head"
         style="?android:attr/listSeparatorTextViewStyle"
         />
+
+    <Button
+        android:id="@+id/wifidb_scan_button"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/scan_wifidb_qr" />
 
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
@@ -322,22 +321,63 @@
             />
     </com.google.android.material.textfield.TextInputLayout>
 
+    <com.google.android.material.textfield.TextInputLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/wifidb_upload_folder">
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/edit_wifidb_upload_folder"
+            android:layout_width="fill_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            />
+    </com.google.android.material.textfield.TextInputLayout>
+
     <CheckBox android:id="@+id/checkbox_wifidb_autoupload"
         android:layout_width="fill_parent"
         android:layout_height="wrap_content"
         android:text="@string/wifidb_auto_upload" />
 
+    <RadioGroup
+        android:id="@+id/radiogroup_wifidb_autoupload"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <RadioButton
+            android:id="@+id/radio_wifidb_autoupload_time"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/wifidb_auto_upload_by_time" />
+        <RadioButton
+            android:id="@+id/radio_wifidb_autoupload_count"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/wifidb_auto_upload_by_count" />
+    </RadioGroup>
+
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:hint="@string/wifidb_auto_interval">
+        android:hint="@string/wifidb_auto_upload_value">
         <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edit_wifidb_auto_interval"
+            android:id="@+id/edit_wifidb_auto_upload_value"
             android:layout_width="120dp"
             android:layout_height="wrap_content"
             android:inputType="number"
             />
     </com.google.android.material.textfield.TextInputLayout>
+
+    <CheckBox android:id="@+id/checkbox_wifidb_clear_after_upload"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/wifidb_clear_after_upload" />
+
+    <TextView
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/settings_scan_head"
+        style="?android:attr/listSeparatorTextViewStyle"
+        />
 
     <CheckBox android:id="@+id/bluetooth_ena"
         android:layout_width="fill_parent"
@@ -393,7 +433,7 @@
             android:layout_weight="1"
             android:layout_marginRight="6dip"
             tools:ignore="RtlHardcoded"
-            android:layout_gravity="left"
+            android.layout_gravity="left"
             />
     </LinearLayout>
 
