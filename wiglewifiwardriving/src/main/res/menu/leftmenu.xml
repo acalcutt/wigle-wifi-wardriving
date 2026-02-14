@@ -17,6 +17,12 @@
             android:contentDescription="@string/tab_map"
             />
         <item
+            android:id="@+id/nav_vector_map"
+            android:icon="@drawable/map"
+            android:title="@string/vector_map_name"
+            android:contentDescription="@string/vector_map_name"
+            />
+        <item
             android:id="@+id/nav_dash"
             android:icon="@drawable/dashboard"
             android:title="@string/tab_dash"

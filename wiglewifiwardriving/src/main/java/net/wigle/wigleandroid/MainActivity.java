@@ -716,6 +716,16 @@ public final class MainActivity extends AppCompatActivity implements TextToSpeec
                     } else if (R.id.nav_exit == menuItem.getItemId()) {
                         selectFragment(menuItem.getItemId());
                         return false;
+                    } else if (menuItem.getItemId() == R.id.nav_vector_map) {
+                        // launch the Vector Map activity
+                        mDrawerLayout.closeDrawers();
+                        applyExitBackground(navigationView);
+                        try {
+                            final Intent intent = new Intent(MainActivity.this, VectorMapActivity.class);
+                            startActivity(intent);
+                        } catch (Exception ex) {
+                            Logging.error("Unable to launch VectorMapActivity: " + ex, ex);
+                        }
                     } else {
                         if (R.id.nav_site_stats != menuItem.getItemId() &&
                                 R.id.nav_user_stats != menuItem.getItemId() &&
