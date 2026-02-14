@@ -264,6 +264,7 @@
     <string name="wifidb_apikey">WiFiDB API Key</string>
     <string name="wifidb_url">WiFiDB URL</string>
     <string name="wifidb_upload_folder">WifiDB Upload Folder</string>
+    <string name="wifidb_upload_folder_button">Choose Folder</string>
     <string name="wifidb_auto_upload">Automatically upload to WifiDB</string>
     <string name="wifidb_auto_upload_by_time">Time</string>
     <string name="wifidb_auto_upload_by_count">Count</string>

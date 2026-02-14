@@ -1,6 +1,7 @@
 package net.wigle.wigleandroid;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -48,6 +49,8 @@ import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
 
+import net.wigle.wigleandroid.background.ApiListener;
+import net.wigle.wigleandroid.background.ObservationUploader;
 import net.wigle.wigleandroid.listener.GNSSListener;
 import net.wigle.wigleandroid.model.api.ApiTokenResponse;
 import net.wigle.wigleandroid.net.RequestCompletedListener;
@@ -71,6 +74,10 @@ public final class SettingsFragment extends Fragment implements DialogListener {
     private static final int DONATE_DIALOG=112;
     private static final int ANONYMOUS_DIALOG=113;
     private static final int DEAUTHORIZE_DIALOG=114;
+    private static final int REQUEST_CODE_PICK_DIR = 115; // New request code for directory picker
+    private static final int WIFI_DB_EXPORT_DIALOG = 116;
+    private static final int WIFI_DB_RUN_EXPORT_DIALOG = 117;
+
 
     public boolean allowRefresh = false;
 
@@ -143,6 +150,37 @@ public final class SettingsFragment extends Fragment implements DialogListener {
         return view;
     }
 
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, Intent resultData) {
+        super.onActivityResult(requestCode, resultCode, resultData);
+        if (requestCode == REQUEST_CODE_PICK_DIR && resultCode == Activity.RESULT_OK) {
+            if (resultData != null) {
+                Uri treeUri = resultData.getData();
+                if (treeUri != null) {
+                    final Activity activity = getActivity();
+                    if (activity != null) {
+                        // Persist access to the URI
+                        activity.getContentResolver().takePersistableUriPermission(
+                                treeUri, Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+
+                        final SharedPreferences prefs = activity.getSharedPreferences(PreferenceKeys.SHARED_PREFS, 0);
+                        final Editor editor = prefs.edit();
+                        editor.putString(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER, treeUri.toString());
+                        editor.apply();
+
+                        // Update the TextView with the selected path
+                        final TextView wdbFolderTextView = getView().findViewById(R.id.text_wifidb_upload_folder);
+                        if (wdbFolderTextView != null) {
+                            final String currentFolderUri = prefs.getString(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER, "");
+                            wdbFolderTextView.setText(Uri.parse(currentFolderUri).getPath()); // Display the path part of the URI
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
     @SuppressLint("SetTextI18n")
     @Override
     public void handleDialog(final int dialogId) {
@@ -153,6 +191,42 @@ public final class SettingsFragment extends Fragment implements DialogListener {
             final View view = getView();
 
             switch (dialogId) {
+                case WIFI_DB_EXPORT_DIALOG: {
+                    try {
+                        final String path = FileUtility.getUploadFilePath(getContext());
+                        final String wifiDbUriString = prefs.getString(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER, null);
+                        final Uri wifiDbUri = wifiDbUriString != null ? Uri.parse(wifiDbUriString) : null;
+                        ObservationUploader observationUploader = new ObservationUploader(getActivity(),
+                                ListFragment.lameStatic.dbHelper, new ApiListener() {
+                            @Override
+                            public void requestComplete(JSONObject object, boolean cached) {
+                                //TODO: something with the object?
+                            }
+                        }, true, true, false, path, null, new Bundle(), wifiDbUri);
+                        observationUploader.start();
+                    } catch (IOException ex) {
+                        Logging.error("Unable to export CSV DB: ", ex);
+                    }
+                    break;
+                }
+                case WIFI_DB_RUN_EXPORT_DIALOG: {
+                    try {
+                        final String path = FileUtility.getUploadFilePath(getContext());
+                        final String wifiDbUriString = prefs.getString(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER, null);
+                        final Uri wifiDbUri = wifiDbUriString != null ? Uri.parse(wifiDbUriString) : null;
+                        ObservationUploader observationUploader = new ObservationUploader(getActivity(),
+                                ListFragment.lameStatic.dbHelper, new ApiListener() {
+                            @Override
+                            public void requestComplete(JSONObject object, boolean cached) {
+                                //TODO: something with the object?
+                            }
+                        }, true, false, true, path, null, new Bundle(), wifiDbUri);
+                        observationUploader.start();
+                    } catch (IOException ex) {
+                        Logging.error("Unable to export CSV run: ", ex);
+                    }
+                    break;
+                }
                 case DONATE_DIALOG: {
                     editor.putBoolean(PreferenceKeys.PREF_DONATE, true);
                     editor.apply();
@@ -597,7 +671,10 @@ public final class SettingsFragment extends Fragment implements DialogListener {
         final EditText wdbUser = view.findViewById(R.id.edit_wifidb_username);
         final EditText wdbApi = view.findViewById(R.id.edit_wifidb_apikey);
         final EditText wdbUrl = view.findViewById(R.id.edit_wifidb_url);
-        final EditText wdbFolder = view.findViewById(R.id.edit_wifidb_upload_folder);
+        // final EditText wdbFolder = view.findViewById(R.id.edit_wifidb_upload_folder); // Removed
+        final Button wdbFolderButton = view.findViewById(R.id.button_wifidb_upload_folder); // New button
+        final TextView wdbFolderTextView = view.findViewById(R.id.text_wifidb_upload_folder); // New TextView
+
         final CheckBox wdbAuto = view.findViewById(R.id.checkbox_wifidb_autoupload);
         final RadioGroup wdbAutoGroup = view.findViewById(R.id.radiogroup_wifidb_autoupload);
         final RadioButton wdbAutoTime = view.findViewById(R.id.radio_wifidb_autoupload_time);
@@ -609,7 +686,37 @@ public final class SettingsFragment extends Fragment implements DialogListener {
         wdbUser.setText(prefs.getString(PreferenceKeys.PREF_WIFIDB_USERNAME, ""));
         wdbApi.setText(prefs.getString(PreferenceKeys.PREF_WIFIDB_APIKEY, ""));
         wdbUrl.setText(prefs.getString(PreferenceKeys.PREF_WIFIDB_URL, ""));
-        wdbFolder.setText(prefs.getString(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER, "wifidb"));
+
+        // Handle the new folder picker
+        final String currentFolderUri = prefs.getString(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER, "");
+        if (!currentFolderUri.isEmpty()) {
+            // Display the path part of the URI
+            wdbFolderTextView.setText(Uri.parse(currentFolderUri).getPath());
+        } else {
+            wdbFolderTextView.setText(R.string.wifidb_upload_folder_button); // Default text
+        }
+
+        wdbFolderButton.setOnClickListener(v -> {
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            intent.addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            intent.addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            startActivityForResult(intent, REQUEST_CODE_PICK_DIR);
+        });
+
+        final Button wdbExportFullDbButton = view.findViewById(R.id.button_wifidb_export_full_db);
+        wdbExportFullDbButton.setOnClickListener(v -> {
+            WiGLEConfirmationDialog.createConfirmation(getActivity(),
+                    getString(R.string.data_export_csv_db), R.id.nav_settings, WIFI_DB_EXPORT_DIALOG);
+        });
+
+        final Button wdbExportRunButton = view.findViewById(R.id.button_wifidb_export_run);
+        wdbExportRunButton.setOnClickListener(v -> {
+            WiGLEConfirmationDialog.createConfirmation(getActivity(),
+                    getString(R.string.data_export_csv), R.id.nav_settings, WIFI_DB_RUN_EXPORT_DIALOG);
+        });
+
+
         wdbAuto.setChecked(prefs.getBoolean(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD, false));
         wdbAutoValue.setText(Integer.toString(prefs.getInt(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD_VALUE, 60)));
         if (prefs.getBoolean(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD_BY_TIME, true)) {
@@ -628,9 +735,7 @@ public final class SettingsFragment extends Fragment implements DialogListener {
         wdbUrl.addTextChangedListener(new SetWatcher() {
             @Override public void onTextChanged(String s) { credentialsUpdate(PreferenceKeys.PREF_WIFIDB_URL, editor, prefs, s); }
         });
-        wdbFolder.addTextChangedListener(new SetWatcher() {
-            @Override public void onTextChanged(String s) { credentialsUpdate(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER, editor, prefs, s); }
-        });
+        // Removed wdbFolder.addTextChangedListener
 
         wdbAuto.setOnCheckedChangeListener((buttonView, isChecked) -> {
             editor.putBoolean(PreferenceKeys.PREF_WIFIDB_AUTO_UPLOAD, isChecked);

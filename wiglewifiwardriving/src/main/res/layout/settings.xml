@@ -321,17 +321,40 @@
             />
     </com.google.android.material.textfield.TextInputLayout>
 
-    <com.google.android.material.textfield.TextInputLayout
+    <TextView
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/wifidb_upload_folder"
+        style="?android:attr/listSeparatorTextViewStyle"
+        />
+    <Button
+        android:id="@+id/button_wifidb_upload_folder"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="@string/wifidb_upload_folder">
-        <com.google.android.material.textfield.TextInputEditText
-            android:id="@+id/edit_wifidb_upload_folder"
-            android:layout_width="fill_parent"
+        android:text="@string/wifidb_upload_folder_button"
+        />
+    <TextView
+        android:id="@+id/text_wifidb_upload_folder"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal">
+        <Button
+            android:id="@+id/button_wifidb_export_full_db"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:inputType="text"
-            />
-    </com.google.android.material.textfield.TextInputLayout>
+            android:layout_weight="1"
+            android:text="@string/csv_export_button" />
+        <Button
+            android:id="@+id/button_wifidb_export_run"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/csv_run_export_button" />
+    </LinearLayout>
 
     <CheckBox android:id="@+id/checkbox_wifidb_autoupload"
         android:layout_width="fill_parent"
@@ -433,7 +456,7 @@
             android:layout_weight="1"
             android:layout_marginRight="6dip"
             tools:ignore="RtlHardcoded"
-            android.layout_gravity="left"
+            android:layout_gravity="left"
             />
     </LinearLayout>
 
@@ -542,7 +565,7 @@
         <TextView
             android:layout_width="0dp"
             android:layout_height="match_parent"
-            android:text="@string/gps_text"
+            android:text="@string.gps_text"
             android:layout_weight="2"
             android:layout_marginRight="6dip"
             tools:ignore="RtlHardcoded"

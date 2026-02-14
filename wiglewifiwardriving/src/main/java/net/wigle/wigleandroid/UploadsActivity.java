@@ -86,7 +86,9 @@ public class UploadsActivity extends AppCompatActivity {
         // start an ObservationUploader that only writes the current run file (justWriteFile=true, writeRun=true)
         try {
             final ObservationUploader ou = new ObservationUploader(this, ListFragment.lameStatic.dbHelper, null, true, false, true);
-            ou.startDownload(null);
+            // For write-only exports we can start the background thread directly to avoid triggering
+            // token or prefs-based blocking logic in startDownload().
+            ou.start();
             statusView.setText("Preparing export...");
         } catch (Exception ex) {
             Logging.error("Failed to start export: ", ex);

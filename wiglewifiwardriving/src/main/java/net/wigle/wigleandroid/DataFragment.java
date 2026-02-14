@@ -3,6 +3,7 @@ package net.wigle.wigleandroid;
 import static android.view.View.GONE;
 import static android.view.View.VISIBLE;
 
+import net.wigle.wigleandroid.background.ApiListener;
 import net.wigle.wigleandroid.background.BackupRunnable;
 import net.wigle.wigleandroid.background.GpxExportRunnable;
 import net.wigle.wigleandroid.background.MagicEightBallRunnable;
@@ -16,6 +17,7 @@ import net.wigle.wigleandroid.ui.NetworkTypeArrayAdapter;
 import net.wigle.wigleandroid.ui.WiFiSecurityTypeArrayAdapter;
 import net.wigle.wigleandroid.ui.WiGLEConfirmationDialog;
 import net.wigle.wigleandroid.ui.WiGLEToast;
+import net.wigle.wigleandroid.util.FileUtility;
 import net.wigle.wigleandroid.util.Logging;
 import net.wigle.wigleandroid.util.PreferenceKeys;
 import net.wigle.wigleandroid.util.SearchUtil;
@@ -53,6 +55,9 @@ import static net.wigle.wigleandroid.background.GpxExportRunnable.EXPORT_GPX_DIA
 
 import com.google.android.material.textfield.TextInputLayout;
 
+import org.json.JSONObject;
+
+import java.io.IOException;
 import java.util.concurrent.Future;
 
 /**
@@ -467,15 +472,37 @@ public final class DataFragment extends Fragment implements DialogListener {
         switch (dialogId) {
             case CSV_RUN_DIALOG: {
                 // actually need this Activity context, for dialogs
-                ObservationUploader observationUploader = new ObservationUploader(getActivity(),
-                        ListFragment.lameStatic.dbHelper, null, true, false, true);
-                observationUploader.start();
+                try {
+                    final String path = FileUtility.getUploadFilePath(getContext());
+                    ObservationUploader observationUploader = new ObservationUploader(getActivity(),
+                            ListFragment.lameStatic.dbHelper, new ApiListener() {
+                        @Override
+                        public void requestComplete(JSONObject object, boolean cached) {
+                            //TODO: something with the object?
+                        }
+                    }, true, false, true,
+                            path, null, new Bundle(), null);
+                    observationUploader.start();
+                } catch (IOException ex) {
+                    Logging.error("Unable to export CSV run: ", ex);
+                }
                 break;
             }
             case CSV_DB_DIALOG: {
-                ObservationUploader observationUploader = new ObservationUploader(getActivity(),
-                        ListFragment.lameStatic.dbHelper, null, true, true, false);
-                observationUploader.start();
+                try {
+                    final String path = FileUtility.getUploadFilePath(getContext());
+                    ObservationUploader observationUploader = new ObservationUploader(getActivity(),
+                            ListFragment.lameStatic.dbHelper, new ApiListener() {
+                        @Override
+                        public void requestComplete(JSONObject object, boolean cached) {
+                            //TODO: something with the object?
+                        }
+                    }, true, true, false,
+                            path, null, new Bundle(), null);
+                    observationUploader.start();
+                } catch (IOException ex) {
+                    Logging.error("Unable to export CSV DB: ", ex);
+                }
                 break;
             }
             case KML_RUN_DIALOG: {

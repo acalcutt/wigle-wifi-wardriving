@@ -10,6 +10,7 @@ import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
+import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
 import androidx.fragment.app.Fragment;
@@ -62,6 +63,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TimeZone;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPOutputStream;
 
 import javax.net.ssl.SSLException;
 
@@ -84,6 +86,8 @@ public class ObservationUploader extends AbstractProgressApiRequest {
     private final boolean writeRun;
     private final String filePath;
     private final String fileName;
+    private final Bundle bundle;
+    private final Uri wifiDbUri;
 
     Status status;
 
@@ -108,14 +112,21 @@ public class ObservationUploader extends AbstractProgressApiRequest {
     public ObservationUploader(final FragmentActivity context,
                                final DatabaseHelper dbHelper, final ApiListener listener,
                                boolean justWriteFile, boolean writeEntireDb, boolean writeRun) {
-        this(context, dbHelper, listener, justWriteFile, writeEntireDb, writeRun, null, null);
+        this(context, dbHelper, listener, justWriteFile, writeEntireDb, writeRun, null, null, null, null, UrlConfig.FILE_POST_URL);
     }
 
     public ObservationUploader(final FragmentActivity context,
                                final DatabaseHelper dbHelper, final ApiListener listener,
                                boolean justWriteFile, boolean writeEntireDb, boolean writeRun,
-                               final String filePath, final String fileName) {
-        super(context, dbHelper, "ApiUL", null, UrlConfig.FILE_POST_URL, false,
+                               final String filePath, final String fileName, final Bundle bundle, final Uri wifiDbUri) {
+        this(context, dbHelper, listener, justWriteFile, writeEntireDb, writeRun, filePath, fileName, bundle, wifiDbUri, UrlConfig.FILE_POST_URL);
+    }
+
+    public ObservationUploader(final FragmentActivity context,
+                               final DatabaseHelper dbHelper, final ApiListener listener,
+                               boolean justWriteFile, boolean writeEntireDb, boolean writeRun,
+                               final String filePath, final String fileName, final Bundle bundle, final Uri wifiDbUri, final String uploadUrl) {
+        super(context, dbHelper, "ApiUL", fileName, uploadUrl, false,
                 true, false, false,
                 AbstractApiRequest.REQUEST_POST, listener, true);
         this.justWriteFile = justWriteFile;
@@ -126,6 +137,8 @@ public class ObservationUploader extends AbstractProgressApiRequest {
         this.writeRun = writeRun;
         this.filePath = filePath;
         this.fileName = fileName;
+        this.bundle = bundle;
+        this.wifiDbUri = wifiDbUri;
     }
 
     @Override
@@ -147,7 +160,15 @@ public class ObservationUploader extends AbstractProgressApiRequest {
         } finally {
             // tell the listener
             if (listener != null) {
-                listener.requestComplete(null, false);
+                final JSONObject result = new JSONObject();
+                try {
+                    if (bundle != null && bundle.getParcelable(BackgroundGuiHandler.FILE_URI) != null) {
+                        result.put(BackgroundGuiHandler.FILE_URI, bundle.getParcelable(BackgroundGuiHandler.FILE_URI).toString());
+                    }
+                } catch (JSONException e) {
+                    Logging.error("Error creating result JSON: ", e);
+                }
+                listener.requestComplete(result, false);
             }
         }
     }
@@ -202,10 +223,9 @@ public class ObservationUploader extends AbstractProgressApiRequest {
                 if (null != fragment) {
                     downloadTokenAndStart(fragment);
                 }
-            } else {
-                start();
             }
         }
+        start();
     }
 
     /**
@@ -223,7 +243,7 @@ public class ObservationUploader extends AbstractProgressApiRequest {
 
             // write file
             ObservationUploader.CountStats countStats = new ObservationUploader.CountStats();
-            long maxId = writeFile( fos, bundle, countStats );
+            long maxId = writeFile( fos, bundle, countStats, filename );
 
             final Map<String,String> params = new HashMap<>();
 
@@ -363,38 +383,30 @@ public class ObservationUploader extends AbstractProgressApiRequest {
     public Status justWriteFile() {
         Status status = null;
         final ObservationUploader.CountStats countStats = new ObservationUploader.CountStats();
-        final Bundle bundle = new Bundle();
+        final Bundle bundle = this.bundle;
+        final Object[] fileFilename = new Object[2];
 
-        try {
-            if (filePath != null && fileName != null) {
-                final File file = new File(filePath, fileName);
-                try (OutputStream fos = new FileOutputStream(file)) {
-                    writeFile(fos, bundle, countStats);
-                    status = Status.WRITE_SUCCESS;
-                    sendBundledMessage(status.ordinal(), bundle);
+        try (OutputStream fos = FileAccess.getOutputStream(context, bundle, fileFilename, wifiDbUri)) {
+            final String filename = (String) fileFilename[1];
+            writeFile(fos, bundle, countStats, filename);
+            // show on the UI
+            if (wifiDbUri == null) {
+                status = Status.WRITE_SUCCESS;
+                sendBundledMessage(status.ordinal(), bundle);
+                // Broadcast that a file has been written so other components (UploadsActivity) can pick it up
+                try {
+                    final String outfileName = bundle.getString(BackgroundGuiHandler.FILENAME);
+                    final String outfilePath = bundle.getString(BackgroundGuiHandler.FILEPATH);
                     Intent i = new Intent("net.wigle.wigleandroid.FILE_READY");
-                    i.putExtra(BackgroundGuiHandler.FILENAME, fileName);
-                    i.putExtra(BackgroundGuiHandler.FILEPATH, filePath);
+                    if (outfileName != null) i.putExtra(BackgroundGuiHandler.FILENAME, outfileName);
+                    if (outfilePath != null) i.putExtra(BackgroundGuiHandler.FILEPATH, outfilePath);
                     if (context != null) context.sendBroadcast(i);
+                } catch (final Exception ex) {
+                    Logging.error("Failed to broadcast file ready: ", ex);
                 }
             } else {
-                try (OutputStream fos = FileAccess.getOutputStream(context, bundle, new Object[2])) {
-                    writeFile(fos, bundle, countStats);
-                    // show on the UI
-                    status = Status.WRITE_SUCCESS;
-                    sendBundledMessage(status.ordinal(), bundle);
-                    // Broadcast that a file has been written so other components (UploadsActivity) can pick it up
-                    try {
-                        final String fileName = bundle.getString(BackgroundGuiHandler.FILENAME);
-                        final String filePath = bundle.getString(BackgroundGuiHandler.FILEPATH);
-                        Intent i = new Intent("net.wigle.wigleandroid.FILE_READY");
-                        if (fileName != null) i.putExtra(BackgroundGuiHandler.FILENAME, fileName);
-                        if (filePath != null) i.putExtra(BackgroundGuiHandler.FILEPATH, filePath);
-                        if (context != null) context.sendBroadcast(i);
-                    } catch (final Exception ex) {
-                        Logging.error("Failed to broadcast file ready: ", ex);
-                    }
-                }
+                status = Status.SUCCESS;
+                sendBundledMessage(status.ordinal(), bundle);
             }
         }
         catch ( InterruptedException ex ) {
@@ -422,7 +434,7 @@ public class ObservationUploader extends AbstractProgressApiRequest {
      * (directly lifted from FileUploadTask)
      */
     private long writeFile( final OutputStream fos, final Bundle bundle,
-                            final ObservationUploader.CountStats countStats ) throws IOException,
+                            final ObservationUploader.CountStats countStats, final String filename ) throws IOException,
             PackageManager.NameNotFoundException, InterruptedException, DBException {
 
         final SharedPreferences prefs = context.getSharedPreferences( PreferenceKeys.SHARED_PREFS, 0);
@@ -439,9 +451,17 @@ public class ObservationUploader extends AbstractProgressApiRequest {
 
         //noinspection
         try {
-            return writeFileWithCursor( context, fos, bundle, countStats, cursor, prefs );
+            if (filename != null && filename.toLowerCase().endsWith(".gz")) {
+                try (GZIPOutputStream gzos = new GZIPOutputStream(fos)) {
+                    return writeFileWithCursor(context, gzos, bundle, countStats, cursor, prefs);
+                }
+            } else {
+                return writeFileWithCursor(context, fos, bundle, countStats, cursor, prefs);
+            }
         } finally {
-            fos.close();
+            if (fos != null) {
+                fos.close();
+            }
             if (cursor != null) {
                 cursor.close();
             }
@@ -480,7 +500,6 @@ public class ObservationUploader extends AbstractProgressApiRequest {
                 "model=" + android.os.Build.MODEL,
                 "release=" + android.os.Build.VERSION.RELEASE,
                 "device=" + android.os.Build.DEVICE,
-                "display=" + android.os.Build.DISPLAY,
                 "board=" + android.os.Build.BOARD,
                 "brand=" + android.os.Build.BRAND,
                 "star=Sol", // assuming for now

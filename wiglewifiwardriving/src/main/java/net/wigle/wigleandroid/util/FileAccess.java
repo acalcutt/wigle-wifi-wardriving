@@ -5,7 +5,10 @@ import static net.wigle.wigleandroid.util.FileUtility.GZ_EXT;
 import static net.wigle.wigleandroid.util.FileUtility.WIWI_PREFIX;
 
 import android.content.Context;
+import android.net.Uri;
 import android.os.Bundle;
+import androidx.documentfile.provider.DocumentFile;
+
 
 import net.wigle.wigleandroid.MainActivity;
 import net.wigle.wigleandroid.background.BackgroundGuiHandler;
@@ -27,6 +30,27 @@ import java.util.zip.GZIPOutputStream;
  * A collection of tools used in writing files from the application
  */
 public class FileAccess {
+    public static OutputStream getOutputStream(final Context context, final Bundle bundle,
+                                               final Object[] fileFilename, final Uri wifiDbUri)
+            throws IOException {
+        final SimpleDateFormat fileDateFormat = new SimpleDateFormat("yyyyMMddHHmmss", Locale.US);
+        final String filename = WIWI_PREFIX + fileDateFormat.format(new Date()) + CSV_EXT + GZ_EXT;
+
+        bundle.putString(BackgroundGuiHandler.FILENAME, filename);
+
+        if (wifiDbUri != null) {
+            DocumentFile pickedDir = DocumentFile.fromTreeUri(context, wifiDbUri);
+            if (pickedDir != null && pickedDir.canWrite()) {
+                DocumentFile newFile = pickedDir.createFile("application/gzip", filename);
+                if (newFile != null) {
+                    bundle.putParcelable(BackgroundGuiHandler.FILE_URI, newFile.getUri());
+                    return new GZIPOutputStream(context.getContentResolver().openOutputStream(newFile.getUri()));
+                }
+            }
+        }
+        return getOutputStream(context, bundle, fileFilename);
+    }
+
     public static OutputStream getOutputStream(final Context context, final Bundle bundle,
                                                final Object[] fileFilename)
             throws IOException {

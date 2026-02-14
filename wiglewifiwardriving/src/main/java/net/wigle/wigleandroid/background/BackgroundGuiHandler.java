@@ -35,6 +35,7 @@ public class BackgroundGuiHandler extends Handler {
     public static final String ERROR = "error";
     public static final String FILENAME = "filename";
     public static final String FILEPATH = "filepath";
+    public static final String FILE_URI = "fileUri";
     public static final String TRANSIDS = "transIds";
 
     public static BackgroundAlertDialog alertDialog;

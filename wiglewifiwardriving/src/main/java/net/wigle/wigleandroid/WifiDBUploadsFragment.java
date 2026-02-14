@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
@@ -20,6 +21,7 @@ import android.widget.Toast;
 import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
+import net.wigle.wigleandroid.background.ApiListener;
 import net.wigle.wigleandroid.background.BackgroundGuiHandler;
 import net.wigle.wigleandroid.background.ObservationUploader;
 import net.wigle.wigleandroid.model.api.UploadReseponse;
@@ -28,6 +30,7 @@ import net.wigle.wigleandroid.net.WifiDBApiManager;
 import net.wigle.wigleandroid.util.Logging;
 import net.wigle.wigleandroid.util.PreferenceKeys;
 
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.File;
@@ -41,7 +44,6 @@ public class WifiDBUploadsFragment extends Fragment {
 
     private WifiDBApiManager wifiDBApiManager;
     private TextView scheduleDetails;
-    private BroadcastReceiver fileReadyReceiver;
     private boolean clearAfterThisUpload = false;
 
     @Override
@@ -61,42 +63,12 @@ public class WifiDBUploadsFragment extends Fragment {
         scheduleDetails = view.findViewById(R.id.text_schedule_details);
         getSchedule();
 
-        fileReadyReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                if (intent == null) return;
-                final String filename = intent.getStringExtra(BackgroundGuiHandler.FILENAME);
-                final String filepath = intent.getStringExtra(BackgroundGuiHandler.FILEPATH);
-                if (filename != null) {
-                    String absPath;
-                    if (filepath != null) {
-                        absPath = filepath + filename;
-                    } else {
-                        File f = getActivity().getFileStreamPath(filename);
-                        absPath = f != null ? f.getAbsolutePath() : filename;
-                    }
-                    scheduleDetails.setText(getString(R.string.upload_file_ready_toast) + filename + "\nUploading...");
-                    uploadFileToWifiDB(absPath);
-                }
-            }
-        };
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            getActivity().registerReceiver(fileReadyReceiver, new IntentFilter("net.wigle.wigleandroid.FILE_READY"), Context.RECEIVER_NOT_EXPORTED);
-        } else {
-            getActivity().registerReceiver(fileReadyReceiver, new IntentFilter("net.wigle.wigleandroid.FILE_READY"));
-        }
-
-
         return view;
     }
 
     @Override
     public void onDestroy() {
         super.onDestroy();
-        try {
-            getActivity().unregisterReceiver(fileReadyReceiver);
-        } catch (Exception ignored) {}
     }
 
     private void startWriteAndUpload(final boolean clearAfter) {
@@ -107,14 +79,78 @@ public class WifiDBUploadsFragment extends Fragment {
             final String uploadPath = prefs.getString(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER,
                     Environment.getExternalStorageDirectory().getAbsolutePath() + "/wifidb");
             final SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US);
-            final String filename = "WigleWifi_" + sdf.format(new Date()) + ".csv";
-            final ObservationUploader ou = new ObservationUploader(getActivity(), ListFragment.lameStatic.dbHelper, null, true, false, true, uploadPath, filename);
+            final String filename = "WigleWifi_" + sdf.format(new Date()) + ".csv.gz";
+
+            final Bundle bundle = new Bundle();
+            bundle.putString(BackgroundGuiHandler.FILEPATH, uploadPath);
+            bundle.putString(BackgroundGuiHandler.FILENAME, filename);
+            final String wifiDbUriString = prefs.getString(PreferenceKeys.PREF_WIFIDB_UPLOAD_FOLDER, null);
+            final Uri wifiDbUri = wifiDbUriString != null ? Uri.parse(wifiDbUriString) : null;
+            final String uploadUrl = prefs.getString(PreferenceKeys.PREF_WIFIDB_URL, "");
+
+            final ObservationUploader ou = new ObservationUploader(getActivity(), ListFragment.lameStatic.dbHelper, (object, cached) -> {
+                try {
+                    final String fileUriString = object.getString(BackgroundGuiHandler.FILE_URI);
+                    if (fileUriString != null) {
+                        final Uri fileUri = Uri.parse(fileUriString);
+                        uploadFileToWifiDB(fileUri, filename);
+                    }
+                } catch (final JSONException e) {
+                    Logging.error("Error getting bundle from result", e);
+                }
+            }, true, false, true, null, null, bundle, wifiDbUri, uploadUrl);
             ou.startDownload(null);
             scheduleDetails.setText(R.string.upload_preparing_toast);
         } catch (Exception ex) {
             Logging.error("Failed to start export: ", ex);
             scheduleDetails.setText(R.string.upload_export_fail_toast);
         }
+    }
+
+    private void uploadFileToWifiDB(final Uri fileUri, final String filename) {
+        final Map<String,String> params = new HashMap<>();
+        params.put("title", filename);
+        wifiDBApiManager.uploadToWifiDB(fileUri, params, new Handler(Looper.getMainLooper()), new RequestCompletedListener<UploadReseponse, JSONObject>() {
+            @Override
+            public void onTaskSucceeded(UploadReseponse response) {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(), R.string.upload_successful_toast, Toast.LENGTH_SHORT).show();
+                        scheduleDetails.setText(R.string.upload_successful_toast);
+                        Logging.info("WifiDB Upload Response: " + response);
+                    });
+                }
+                if (clearAfterThisUpload) {
+                    try {
+                        ListFragment.lameStatic.dbHelper.clearDatabase();
+                        final SharedPreferences prefs = getActivity().getSharedPreferences(PreferenceKeys.SHARED_PREFS, 0);
+                        final SharedPreferences.Editor editor = prefs.edit();
+                        editor.putLong(PreferenceKeys.PREF_DB_MARKER, 0L);
+                        editor.apply();
+                        if (getActivity() != null) {
+                            getActivity().runOnUiThread(() -> scheduleDetails.append("\n" + getString(R.string.upload_cleared_toast)));
+                        }
+                    } catch (Exception ex) {
+                        Logging.error("Failed to clear DB after upload: ", ex);
+                    }
+                }
+            }
+
+            @Override
+            public void onTaskFailed(int status, JSONObject error) {
+                if (getActivity() != null) {
+                    getActivity().runOnUiThread(() -> {
+                        Toast.makeText(getContext(), R.string.upload_failed_toast, Toast.LENGTH_SHORT).show();
+                        scheduleDetails.setText(getString(R.string.upload_failed_toast) + ": " + status);
+                    });
+                }
+            }
+
+            @Override
+            public void onTaskCompleted() {
+                //
+            }
+        });
     }
 
     private void uploadFileToWifiDB(final String absPath) {
